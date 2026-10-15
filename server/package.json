@@ -1,0 +1,23 @@
+{
+  "name": "ssh-manager-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "SSH Manager backend: REST + WebSocket + SSH probing + batch execution + scheduler",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "node-cron": "^4.2.1",
+    "ssh2": "^1.17.0",
+    "ws": "^8.18.3"
+  }
+}

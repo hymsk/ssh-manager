@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# build output
+web/dist/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+
+# runtime data & secrets
+server/data/
+server/scripts/test-host-key.pem
+
+# logs
+*.log
+
+# editor / os
+.DS_Store
+.vscode/
+.idea/
+*.swp
+tsconfig.*.tsbuildinfo
