@@ -19,7 +19,10 @@ export function TerminalView({ host, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!holderRef.current) return
+    const holder = holderRef.current
+    if (!holder) return
+    let disposed = false
+
     const term = new Terminal({
       fontFamily: "'JetBrains Mono', 'SFMono-Regular', Consolas, monospace",
       fontSize: 13,
@@ -35,12 +38,12 @@ export function TerminalView({ host, onClose }: Props) {
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
-    term.open(holderRef.current)
-    fit.fit()
+    term.open(holder)
     termRef.current = term
     fitRef.current = fit
 
     const off = ws.onTerminal((msg) => {
+      if (disposed) return
       switch (msg.type) {
         case 'term_status':
           setStatus(msg.status as typeof status)
@@ -57,7 +60,20 @@ export function TerminalView({ host, onClose }: Props) {
       }
     })
 
-    ws.send({ type: 'term_open', hostId: host.id, cols: term.cols, rows: term.rows })
+    // Defer the first fit until layout settles: calling fit() before the
+    // element has non-zero size (and before the renderer is ready) throws on
+    // `dimensions`. StrictMode's double-mount makes this race easy to hit.
+    const doFit = () => {
+      if (disposed || !termRef.current) return
+      try {
+        if (holder.clientWidth > 0 && holder.clientHeight > 0) fit.fit()
+      } catch {
+        /* renderer not ready yet; the next resize/observer tick will retry */
+      }
+    }
+    const raf = requestAnimationFrame(doFit)
+
+    ws.send({ type: 'term_open', hostId: host.id, cols: term.cols || 80, rows: term.rows || 24 })
 
     const onData = term.onData((data) => {
       ws.send({ type: 'term_data', data })
@@ -65,21 +81,14 @@ export function TerminalView({ host, onClose }: Props) {
     const onResize = term.onResize(({ cols, rows }) => {
       ws.send({ type: 'term_resize', cols, rows })
     })
-
-    const doFit = () => {
-      try {
-        fit.fit()
-        ws.send({ type: 'term_resize', cols: term.cols, rows: term.rows })
-      } catch {
-        /* ignore */
-      }
-    }
     const ro = new ResizeObserver(() => doFit())
-    ro.observe(holderRef.current)
+    ro.observe(holder)
 
     term.focus()
 
     return () => {
+      disposed = true
+      cancelAnimationFrame(raf)
       off()
       onData.dispose()
       onResize.dispose()
@@ -94,6 +103,11 @@ export function TerminalView({ host, onClose }: Props) {
     setError(null)
     setStatus('connecting')
     termRef.current?.reset()
+    try {
+      fitRef.current?.fit()
+    } catch {
+      /* ignore */
+    }
     ws.send({ type: 'term_open', hostId: host.id, cols: termRef.current?.cols || 80, rows: termRef.current?.rows || 24 })
   }
 
