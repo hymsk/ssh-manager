@@ -13,9 +13,17 @@ export function PlanList() {
   const pushToast = useStore((s) => s.pushToast)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<Plan | null>(null)
+  // Ids with an in-flight toggle, so a double click cannot fire twice.
+  const [pending, setPending] = useState<Record<string, boolean>>({})
 
+  // Keep a stable order: sorting by enabled state would make a card jump to
+  // another position the moment it is toggled, so rapid clicks would land on
+  // a different plan. Newest first matches the backend ordering.
   const sorted = useMemo(
-    () => [...plans].sort((a, b) => Number(b.enabled) - Number(a.enabled) || a.name.localeCompare(b.name)),
+    () =>
+      [...plans].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
     [plans],
   )
 
@@ -31,11 +39,25 @@ export function PlanList() {
   }
 
   async function toggle(plan: Plan) {
+    if (pending[plan.id]) return
+    setPending((p) => ({ ...p, [plan.id]: true }))
     try {
-      await api.togglePlan(plan.id)
-      await refreshPlans()
+      const { plan: updated } = await api.togglePlan(plan.id)
+      // Update just this row in place instead of refetching the whole list,
+      // so the card keeps its position and focus/scroll are preserved.
+      useStore.setState((state) => ({
+        plans: state.plans.map((p) => (p.id === updated.id ? updated : p)),
+      }))
+      pushToast('success', updated.enabled ? `已启用「${updated.name}」` : `已暂停「${updated.name}」`)
     } catch (err) {
       pushToast('error', (err as Error).message)
+      await refreshPlans()
+    } finally {
+      setPending((p) => {
+        const next = { ...p }
+        delete next[plan.id]
+        return next
+      })
     }
   }
 
@@ -142,8 +164,13 @@ export function PlanList() {
                 </button>
               )}
               <span style={{ flex: 1 }} />
-              <button className="btn sm ghost" onClick={() => toggle(plan)}>
-                {plan.enabled ? '暂停' : '启用'}
+              <button
+                className="btn sm ghost"
+                onClick={() => toggle(plan)}
+                disabled={!!pending[plan.id]}
+                title={plan.enabled ? '暂停此计划' : '启用此计划'}
+              >
+                {pending[plan.id] ? '…' : plan.enabled ? '暂停' : '启用'}
               </button>
               <button className="btn sm ghost danger" onClick={() => remove(plan)}>
                 删除

@@ -112,9 +112,12 @@ npm run dev:web
 ## 测试
 
 ```bash
-cd server && npm test
-cd web && npm run build
+cd server && npm test          # 后端单元测试（cron 计算、加解密）
+python3 e2e/plans.py http://localhost:5173   # 前端 E2E（需先启动前后端）
 ```
+
+E2E 覆盖计划卡片的新建/编辑/启用暂停/位置稳定性/快速连点/Cron/删除/校验/执行，
+详见 `e2e/README.md`。
 
 ## 安全说明
 
